@@ -179,7 +179,7 @@ class GOL(object):
         self.skeleton = skeleton.GLSkeleton(draw_fn = self.redraw, resize_fn = self.resize, 
                                               tick_fn=self.tick, mouse_fn=self.mouse, key_fn=self.key, 
                                               exit_fn=self.exit, window_size=window_size)
-        lif_size = 512
+        lif_size = 8192
         self.fbo_front = FBOContext(lif_size, lif_size)
         self.fbo_back = FBOContext(lif_size, lif_size)
         self.fbo_display = FBOContext(lif_size*2, lif_size*2)
@@ -253,18 +253,18 @@ class GOL(object):
     def redraw(self):
         glClearColor(1,0,1,1)
         glClear(GL_COLOR_BUFFER_BIT)
-        # for i in range(25):
-        #     with self.fbo_front:            
-        #         # render the back to the front, applying the shader effect
-        #         self.cal_render.draw(textures={"callahanTexture":self.callahan_texture, 
-        #                                    "quadTexture":self.fbo_back.texture})
+        for i in range(25):
+            with self.fbo_front:            
+                # render the back to the front, applying the shader effect
+                self.cal_render.draw(textures={"callahanTexture":self.callahan_texture, 
+                                           "quadTexture":self.fbo_back.texture})
                 
-        #     # switch double buffer
-        #     self.fbo_front, self.fbo_back = self.fbo_back, self.fbo_front
+            # switch double buffer
+            self.fbo_front, self.fbo_back = self.fbo_back, self.fbo_front
 
-        with self.fbo_front:
-           self.cal_render.draw(textures={"callahanTexture":self.callahan_texture, 
-                                          "quadTexture":self.fbo_back.texture})
+        # with self.fbo_front:
+        #    self.cal_render.draw(textures={"callahanTexture":self.callahan_texture, 
+        #                                   "quadTexture":self.fbo_back.texture})
 
 
         with self.fbo_display:
