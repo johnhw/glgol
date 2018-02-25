@@ -103,21 +103,15 @@ class FBOContext:
         glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT )
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST) 
-        glTexImage2D(GL_TEXTURE_2D, 0,GL_RED,width,height,0,GL_RED,GL_FLOAT, None)
+        glTexImage2D(GL_TEXTURE_2D, 0,GL_R8,width,height,0,GL_RED,GL_FLOAT, None)
         
         # bind the frame buffer to the texture as the color render target        
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.fbo_texture, 0)
                             
 
-        # create a depth buffer (as a render buffer) and attach it        
-        glGenRenderbuffers(1, self.fbo_renderbuffer)
-        glBindRenderbuffer(GL_RENDERBUFFER, self.fbo_renderbuffer)
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height)                
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, self.fbo_buffer)
-
+        
         # unbind the framebuffer/renderbuffer
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
-        glBindRenderbuffer(GL_RENDERBUFFER, 0)
         
         self.width = width
         self.height = height
@@ -145,7 +139,6 @@ def mkshader(verts, frags, geoms=None):
     [c for c in frags])
 
 class NPTexture(object):
-
     def __init__(self, arr):
         self.id = GLuint()
         glGenTextures(1, self.id)
@@ -155,7 +148,7 @@ class NPTexture(object):
         glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT )
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST) 
-        glTexImage2D(GL_TEXTURE_2D, 0,GL_RED,arr.shape[1],arr.shape[0],0,GL_RED,GL_FLOAT, arr.ctypes.data)
+        glTexImage2D(GL_TEXTURE_2D, 0,GL_R8, arr.shape[1],arr.shape[0],0,GL_RED,GL_FLOAT, arr.ctypes.data)
         self.target = GL_TEXTURE_2D
 
 def mkeven_integer(arr):
@@ -257,7 +250,7 @@ class GOL(object):
             with self.fbo_front:            
                 # render the back to the front, applying the shader effect
                 self.cal_render.draw(textures={"callahanTexture":self.callahan_texture, 
-                                           "quadTexture":self.fbo_back.texture})
+                                           "quadTexture":self.fbo_back.texture}, vars={"frame_offset":i%2})
                 
             # switch double buffer
             self.fbo_front, self.fbo_back = self.fbo_back, self.fbo_front
