@@ -12,6 +12,6 @@ layout(location=0) out vec4 frag_color;
 void main(void)
 {          
      // look up the texture at the UV coordinates
-    frag_color = texture2D(quadTexture, vec2(texCoord.x, texCoord.y));
+    frag_color = texture2D(quadTexture, vec2(texCoord.x, texCoord.y)).xxxx;
 
 }
