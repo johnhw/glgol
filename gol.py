@@ -10,7 +10,7 @@ import pyspheregl.utils.shader as shader
 from pyspheregl.utils.shader import shader_from_file
 from pyspheregl.utils.np_vbo import VBuf, IBuf
 
-
+import pyspheregl.utils.transformations as tn
 from pyspheregl.utils.graphics_utils import make_unit_quad_tile
 import time
 import timeit
@@ -152,27 +152,39 @@ class NPTexture(object):
         self.target = GL_TEXTURE_2D
 
 def mkeven_integer(arr):
+    # force even size
     return np.pad(arr, ((arr.shape[0]%2,0), (arr.shape[1]%2,0)), 'constant').astype(np.int32)
 
 def pack_callahan(arr):
-    # force even size
+    # pack into 4 bit 2x2 cell format
     return arr[::2,::2] + (arr[1::2, ::2] << 1) + (arr[::2, 1::2]<<2)+ (arr[1::2, 1::2]<<3)
 
 def unpack_callahan(cal_arr):
+    # unpack from 4 bit 2x2 cell format into standard array
     unpacked = np.zeros((cal_arr.shape[0]*2, cal_arr.shape[1]*2), dtype=np.int32)
     unpacked[::2, ::2] = (cal_arr & 1)
     unpacked[1::2, ::2] = ((cal_arr >> 1) & 1)
     unpacked[::2, 1::2] = ((cal_arr >> 2) & 1)
     unpacked[1::2, 1::2] = ((cal_arr >> 3) & 1)
     return unpacked
+from ctypes import sizeof,byref
 
 class GOL(object):
+    def create_atomic_counter(self):
+        self.atomic_buffer = GLuint()
+        self.atomics = (GLuint * 1) ()
+        glGenBuffers(1, self.atomic_buffer)
+        glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, self.atomic_buffer)
+        glBufferData(GL_ATOMIC_COUNTER_BUFFER, sizeof(self.atomics), 0, GL_DYNAMIC_DRAW)
+        glBindBuffer(GL_ATOMIC_COUNTER_BUFFER,0)
+
     def __init__(self):
         window_size = (800, 800)
         self.skeleton = skeleton.GLSkeleton(draw_fn = self.redraw, resize_fn = self.resize, 
                                               tick_fn=self.tick, mouse_fn=self.mouse, key_fn=self.key, 
                                               exit_fn=self.exit, window_size=window_size)
-        lif_size = 8192
+        lif_size = 4096
+        self.quad_res = lif_size * 0.5
         self.fbo_front = FBOContext(lif_size, lif_size)
         self.fbo_back = FBOContext(lif_size, lif_size)
         self.fbo_display = FBOContext(lif_size*2, lif_size*2)
@@ -184,14 +196,18 @@ class GOL(object):
 
         successors, s_table, view_table = create_callahan_table()        
 
+        # upload the reshaped, normalised texture
         self.callahan_texture = NPTexture(s_table.reshape(256,256)/15.0)        
 
+        self.model = np.eye(4)
+        self.proj = np.eye(4)
         
         quad_indices, quad_verts, tex = make_unit_quad_tile(1)
-        screen_shader =mkshader(["screen_quad.vert"], ["screen_quad.frag"]) 
+        screen_shader =mkshader(["screen_quad_mappable.vert"], ["screen_quad.frag"]) 
         self.screen_render = shader.ShaderVBO(screen_shader, np_vbo.IBuf(quad_indices),
             buffers={"position":np_vbo.VBuf(quad_verts)},
-            textures={"quadTexture":self.fbo_display.texture})
+            textures={"quadTexture":self.fbo_display.texture},
+            )
 
         unpack_shader =mkshader(["screen_quad.vert"], ["unpack_callahan.frag"]) 
         self.unpack_render = shader.ShaderVBO(unpack_shader, np_vbo.IBuf(quad_indices),
@@ -204,11 +220,13 @@ class GOL(object):
             buffers={"position":np_vbo.VBuf(quad_verts)},            
             )
 
-        # load life pattern
-        lif = lifeparsers.to_numpy(lifeparsers.autoguess_life_file("breeder.lif")[0])
-        
-        lif = lif.astype(np.float32)
+        self.create_atomic_counter()
 
+        # load life pattern
+        lif = lifeparsers.to_numpy(lifeparsers.autoguess_life_file("rake-c2-2c5ship.lif")[0])
+            
+
+        # pack into 4 bit format
         lif_int = mkeven_integer(lif)
         packed = pack_callahan(lif_int)
         unpacked = unpack_callahan(packed)
@@ -218,12 +236,15 @@ class GOL(object):
         w, h = lif_size, lif_size # size of FBO texture
         x_off = (w - packed.shape[1]) / 2
         y_off = (h - packed.shape[0]) / 2
-        
+        # normalize for 0.0-1.0 texture format and upload
         packed = packed.astype(np.float32) / 15.0
         glBindTexture(self.fbo_back.texture.target, self.fbo_back.texture.id)        
         glTexSubImage2D(GL_TEXTURE_2D, 0, x_off, y_off, packed.shape[1], packed.shape[0], GL_RED, GL_FLOAT, packed.ctypes.data)
         
 
+        self.proj = np.dot(tn.projection_matrix((0,0,0), (0,0,1), perspective=(0,1,1)), tn.scale_matrix(4.0/self.quad_res))
+        
+        
 
     def start(self):
         self.skeleton.main_loop()
@@ -244,21 +265,25 @@ class GOL(object):
         pass
     
     def redraw(self):
-        glClearColor(1,0,1,1)
+        glClearColor(0,0,0,1)
         glClear(GL_COLOR_BUFFER_BIT)
-        for i in range(25):
-            with self.fbo_front:            
+        glDisable(GL_BLEND)
+        glDisable(GL_DEPTH_TEST)
+
+        population = (GLuint * 1)()
+
+        for i in range(2):
+            with self.fbo_front:                   
+                glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, self.atomic_buffer)
+                glBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(population), population)
                 # render the back to the front, applying the shader effect
                 self.cal_render.draw(textures={"callahanTexture":self.callahan_texture, 
-                                           "quadTexture":self.fbo_back.texture}, vars={"frame_offset":i%2})
-                
+                                               "quadTexture":self.fbo_back.texture}, vars={"frame_offset":i%2})
+                # read back the buffer
+                glGetBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(population), population)
+                print(population[0])
             # switch double buffer
             self.fbo_front, self.fbo_back = self.fbo_back, self.fbo_front
-
-        # with self.fbo_front:
-        #    self.cal_render.draw(textures={"callahanTexture":self.callahan_texture, 
-        #                                   "quadTexture":self.fbo_back.texture})
-
 
         with self.fbo_display:
             self.unpack_render.draw()
@@ -268,12 +293,16 @@ class GOL(object):
             
         print(self.skeleton.actual_fps)
         
-        self.screen_render.draw()
+        self.model = prod(tn.translation_matrix((0,0,0)), tn.rotation_matrix(wall_clock()*0.1, (1,0,0)), tn.scale_matrix(self.quad_res))
         
-        # switch double buffer
-        self.fbo_front, self.fbo_back = self.fbo_back, self.fbo_front
-            
+        
 
+        
+        self.screen_render.draw(vars={"proj":self.proj.ravel(), "model":self.model.ravel()})
+        
+            
+def prod(*args):
+    return reduce(np.dot, args)
     
 if __name__=="__main__":
     g = GOL()
