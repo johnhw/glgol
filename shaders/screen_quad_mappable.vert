@@ -9,7 +9,8 @@ uniform mat4 proj;
 
 void main()
 {
-    gl_Position = proj * model * vec4(position.xy, 0, 1);
+    gl_Position = proj * model * vec4(position.xy, -1, 1);
+    
     // tex-coords are just 0-1, 0-1
     texCoord = position / 2.0 + 0.5;
 }

@@ -9,9 +9,18 @@ uniform float in_size;
 
 layout(location=0) out vec4 frag_color;
 
+uniform int frame;
+uniform int strobe;
 
 void main(void)
 {          
+    float frame_pos = float(frame % strobe) / strobe;    
+
+    if(frame_pos==0)
+        frame_pos=1.0;
+    else
+        frame_pos=0.1;
+    
 
     int odd_row = int(texCoord.x * 2 * in_size) % 2;
     int odd_col = int(texCoord.y * 2 * in_size) % 2;
@@ -24,17 +33,12 @@ void main(void)
     int d = ((pcked >> 3) & 1);
         
     float col;
-    if(odd_row==0 && odd_col==0) 
-        col = a;
-    if(odd_row==0 && odd_col==1) 
-        col = b;
-    if(odd_row==1 && odd_col==0) 
-        col = c;
-    if(odd_row==1 && odd_col==1) 
-        col = d;
 
-    col = col;
+    // select the appropriate pixel to write out
+    col = (1-odd_row) * (1-odd_col) * a + (1-odd_row)*odd_col * b
+     + (odd_row)*(1-odd_col)*c + (odd_row)*odd_col*d;
+
      // look up the texture at the UV coordinates
-    frag_color = vec4(col, col, col, 1);
+    frag_color = vec4(col, col, col, frame_pos*(col+0.15));
 
 }
