@@ -39,6 +39,6 @@ void main(void)
      + (odd_row)*(1-odd_col)*c + (odd_row)*odd_col*d;
 
      // look up the texture at the UV coordinates
-    frag_color = vec4(col, col, col, frame_pos*(col+0.15));
+    frag_color = vec4(col, col, col, frame_pos*(col+0.55));
 
 }

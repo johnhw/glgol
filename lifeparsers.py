@@ -3,6 +3,7 @@ import numpy as np
 
 def to_numpy(pos):
     pos = np.array(pos)    
+    print(pos.shape)
     pos[:,0] -= np.min(pos[:,0])
     pos[:,1] -= np.min(pos[:,1])    
     dense = np.zeros((np.max(pos[:,1])+1, np.max(pos[:,0])+1))

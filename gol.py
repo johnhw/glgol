@@ -318,9 +318,8 @@ class GOL(object):
         glEnable(GL_BLEND)
 
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        with self.fbo_display:
-            for i in range(5):
-                self.unpack_render.draw(vars={"frame":self.frame_ctr, "strobe":8})
+        with self.fbo_display:            
+                self.unpack_render.draw(vars={"frame":self.frame_ctr, "strobe":60})
 
         
         glBindTexture(self.fbo_display.texture.target, self.fbo_display.texture.id)                
