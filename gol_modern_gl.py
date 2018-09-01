@@ -19,7 +19,7 @@ def shader_from_file(ctx, vtx, frag):
     return ctx.program(vertex_shader=vertex_shader, fragment_shader=frag_shader)
 
 
-def fit_life(ctx, packed, lif_size, texture):
+def packed_to_texture(ctx, packed, lif_size, texture):
     # upload, centered, into texture
     w, h = lif_size, lif_size  # size of FBO texture
     x_off = (w - packed.shape[1]) // 2
@@ -29,24 +29,29 @@ def fit_life(ctx, packed, lif_size, texture):
     texture.write(packed, viewport=(x_off, y_off, packed.shape[1], packed.shape[0]))
     return texture
 
-def square_red_texture(ctx, size, dtype="f1"):
-    texture = ctx.texture((size, size), components=1, dtype=dtype)
+
+def square_single_channel_texture(ctx, size, data=None):
+    texture = ctx.texture((size, size), components=1, data=data)
     texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
     return texture
 
 
+# Framebuffer, backed to a single-channel texture, color buffer only
 class FBO:
     def __init__(self, ctx, size):
-        self.texture = square_red_texture(ctx, size)
+        self.texture = square_single_channel_texture(ctx, size)
         self.fbo = ctx.framebuffer(color_attachments=self.texture)
         self.scope = ctx.scope(self.fbo)
         self.ctx = ctx
         self.size = size
         self.offset = 0
 
+    # bind the texture (i.e. for reading the image back)
     def use(self):
         self.texture.use()
 
+    # proxy the scope object, and configure
+    # the viewport so that rendering is pixel-perfect
     def __enter__(self):
         self.scope.__enter__()
         self.ctx.viewport = (
@@ -60,62 +65,80 @@ class FBO:
         self.scope.__exit__(type, value, tb)
 
 
-class SimpleColorTriangle:
-    def __init__(self):
+class CallahanGL:
+    def setup_gl(self):
         self.skeleton = skel.GLSkeleton(draw_fn=self.render, window_size=(800, 800))
         self.ctx = self.skeleton.get_context()
-        self.frame_ctr = 0
-        self.population = 0
-
-        # load life pattern
-        self.lif_size = 1024
-
         # framebuffers
         self.front = FBO(self.ctx, self.lif_size)
         self.back = FBO(self.ctx, self.lif_size)
-        self.display = FBO(self.ctx, self.lif_size * 2)
-
-        _, s_table, _ = create_callahan_table()
-
+        self.display = FBO(
+            self.ctx, self.lif_size * 2
+        )  # twice resolution because data is unpacked
         self.pop_buffer = self.ctx.buffer(data=np.zeros(1, dtype="uint32").tobytes())
 
-        # upload the reshaped, normalised texture
-        self.callahan_texture = square_red_texture(self.ctx, 256)
-        self.callahan_texture.write(s_table * 17)
+        self.colour_fbo = self.ctx.simple_framebuffer(
+            (self.skeleton.window.width, self.skeleton.window.height), components=4
+        )
+        self.colour_scope = self.ctx.scope(self.colour_fbo)
 
-        fname="breeder.lif"
-        fit_life(self.ctx, pack_life(load_life(fname)), self.lif_size, self.front.texture)
-        
-
+    def load_shaders(self):
         self.unpack_prog = shader_from_file(
             self.ctx, "unpack_callahan.vert", "unpack_callahan.frag"
         )
         self.gol_prog = shader_from_file(self.ctx, "callahan.vert", "callahan.frag")
         self.tex_prog = shader_from_file(self.ctx, "tex_quad.vert", "tex_quad.frag")
-        quad = np.array([[-1, -1], [-1, 1], [1, -1], [1, 1]]).astype("f4")
-        quad_vbo = self.ctx.buffer(quad.tobytes())
-
-        self.unpack_vao = self.ctx.simple_vertex_array(
-            self.unpack_prog, quad_vbo, "pos"
-        )
-        self.gol_vao = self.ctx.simple_vertex_array(self.gol_prog, quad_vbo, "pos")
-        self.tex_vao = self.ctx.simple_vertex_array(self.tex_prog, quad_vbo, "pos")
-
         self.unpack_prog["in_size"].value = self.lif_size
         self.gol_prog["quadTexture"].value = 0
         self.gol_prog["callahanTexture"].value = 1
 
+    def setup_geometry(self):
+        quad = np.array([[-1, -1], [-1, 1], [1, -1], [1, 1]]).astype("f4")
+        quad_vbo = self.ctx.buffer(quad.tobytes())
+
+        # create a vertex array that just renders a single triangle strip
+        # quad, with the given program
+        def make_quad_vao(prog):
+            return self.ctx.simple_vertex_array(prog, quad_vbo, "pos")
+
+        self.unpack_vao = make_quad_vao(self.unpack_prog)
+        self.gol_vao = make_quad_vao(self.gol_prog)
+        self.tex_vao = make_quad_vao(self.tex_prog)
+
+    def __init__(self):
+        self.lif_size = 1024
+
+        self.setup_gl()
+        self.load_shaders()
+        self.setup_geometry()
+
+        s_table = create_callahan_table()
+        # upload the reshaped, normalised texture
+        self.callahan_texture = square_single_channel_texture(
+            self.ctx, 256, data=s_table * 17
+        )
+
+        # load life pattern
+        fname = "breeder.lif"
+        packed = pack_life(load_life(fname))
+        packed_to_texture(
+            self.ctx, packed, self.lif_size, self.front.texture
+        )
+        self.population = 0
+
+        # bind the lookup table to texture slot 1
+        self.callahan_texture.use(1)
         self.skeleton.run()
 
     def render(self):
-        frame_offset = self.frame_ctr % 2
+        # pixel offset (alternates each frame)
+        frame_offset = self.skeleton.frames % 2
 
         self.ctx.clear(0.0, 0.0, 0.0)
 
-        # apply forward algorithm
+        # # apply forward algorithm
         with self.back:
             self.front.use()
-            self.callahan_texture.use(1)
             # adjust for pixel shift on each frame
             self.gol_prog["frameOffset"].value = frame_offset
             self.gol_vao.render(mode=moderngl.TRIANGLE_STRIP)
@@ -129,7 +152,8 @@ class SimpleColorTriangle:
             self.unpack_vao.render(mode=moderngl.TRIANGLE_STRIP)
             self.population = np.frombuffer(self.pop_buffer.read(), dtype=np.uint32)[0]
 
-        self.display.texture.build_mipmaps()  # ensure mip-mapping is rebuilt
+        # ensure mip-mapping is rebuilt
+        self.display.texture.build_mipmaps()
 
         # now render to the screen
         self.ctx.viewport = (
@@ -138,12 +162,17 @@ class SimpleColorTriangle:
             self.skeleton.window.width,
             self.skeleton.window.height,
         )
+
+        # bugfix? without this, rendering is stuck
+        # in single channel mode. This restores the colour rendering
+        with self.colour_scope:
+            pass
+
         self.display.use()
         self.tex_vao.render(mode=moderngl.TRIANGLE_STRIP)
 
         # flip buffers
-        self.frame_ctr += 1
         self.front, self.back = self.back, self.front
 
 
-SimpleColorTriangle()
+CallahanGL()
