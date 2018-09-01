@@ -1,5 +1,6 @@
 import numpy as np
 import lifeparsers
+import re
 
 
 def mkeven_integer(arr):
@@ -29,20 +30,31 @@ def unpack_callahan(cal_arr):
     return unpacked
 
 
-def create_callahan_table():
-    """Generate the lookup table for the cells."""
-    successors = {}
+# parse a b3s23 style rule
+def parse_rule(rule):
+    birth_survive = re.findall(r'[bB]([0-9]+)\s*\/?\s*[sS]([0-9]+)', rule)[0]
+    def digits(seq):
+        return [int(d) for d in seq]        
+    return  digits(birth_survive[0]), digits(birth_survive[1])    
+
+
+def create_callahan_table(rule='b3s23'):
+    """Generate the lookup table for the cells."""    
     # map predecessors to successor
     s_table = np.zeros((16, 16, 16, 16), dtype=np.uint8)
     # map 16 "colours" to 2x2 cell patterns
 
-    def life(*args):
+    birth, survive = parse_rule(rule)
+    
+    # apply the rule to the 3x3 block of cells
+    def apply_rule(*args):
         n = sum(args[1:])
-        n |= args[0]  # if we or with the cell value, we can just test == 3
-        if n == 3:
+        ctr = args[0]
+        if ctr and n in survive:
             return 1
-        else:
-            return 0
+        if not ctr and n in birth:
+            return 1
+        return 0
 
     # abcd
     # eFGh
@@ -60,10 +72,10 @@ def create_callahan_table():
         a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p = bv
 
         # compute next state of the inner 2x2
-        nw = life(f, a, b, c, e, g, i, j, k)
-        ne = life(g, b, c, d, f, h, j, k, l)
-        sw = life(j, e, f, g, i, k, m, n, o)
-        se = life(k, f, g, h, j, l, n, o, p)
+        nw = apply_rule(f, a, b, c, e, g, i, j, k)
+        ne = apply_rule(g, b, c, d, f, h, j, k, l)
+        sw = apply_rule(j, e, f, g, i, k, m, n, o)
+        se = apply_rule(k, f, g, h, j, l, n, o, p)
 
         # compute the index of this 4x4
         nw_code = a | (b << 1) | (e << 2) | (f << 3)

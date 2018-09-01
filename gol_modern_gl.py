@@ -83,10 +83,13 @@ class CallahanGL:
         self.colour_scope = self.ctx.scope(self.colour_fbo)
 
     def load_shaders(self):
+        # shader to convert packed 4 bit format to binary pixels
         self.unpack_prog = shader_from_file(
             self.ctx, "unpack_callahan.vert", "unpack_callahan.frag"
         )
+        # shader to perform Life rule using Callahan's lookup table
         self.gol_prog = shader_from_file(self.ctx, "callahan.vert", "callahan.frag")
+        # Simple textured quad shader
         self.tex_prog = shader_from_file(self.ctx, "tex_quad.vert", "tex_quad.frag")
         self.unpack_prog["in_size"].value = self.lif_size
         self.gol_prog["quadTexture"].value = 0
@@ -121,9 +124,7 @@ class CallahanGL:
         # load life pattern
         fname = "breeder.lif"
         packed = pack_life(load_life(fname))
-        packed_to_texture(
-            self.ctx, packed, self.lif_size, self.front.texture
-        )
+        packed_to_texture(self.ctx, packed, self.lif_size, self.front.texture)
         self.population = 0
 
         # bind the lookup table to texture slot 1
