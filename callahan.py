@@ -97,9 +97,6 @@ def pack_life(lif):
     # pack into 4 bit format
     lif_int = mkeven_integer(lif)
     packed = pack_callahan(lif_int)
-    unpacked = unpack_callahan(packed)
-
-    assert np.allclose(lif_int, unpacked)
     return packed
 
 

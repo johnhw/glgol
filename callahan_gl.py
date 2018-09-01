@@ -109,7 +109,7 @@ class CallahanGL:
         self.tex_vao = make_quad_vao(self.tex_prog)
 
     def __init__(self):
-        self.lif_size = 1024
+        self.lif_size = 2048
 
         self.setup_gl()
         self.load_shaders()
@@ -122,7 +122,7 @@ class CallahanGL:
         )
 
         # load life pattern
-        fname = "breeder.lif"
+        fname = "pat/breeder.lif"
         packed = pack_life(load_life(fname))
         packed_to_texture(self.ctx, packed, self.lif_size, self.front.texture)
         self.population = 0
