@@ -25,7 +25,7 @@ def fit_life(ctx, packed, lif_size, texture):
     x_off = (w - packed.shape[1]) // 2
     y_off = (h - packed.shape[0]) // 2
     # normalize for the format and upload
-    packed = (packed*17).astype(np.uint8)
+    packed = (packed * 17).astype(np.uint8)
     texture.write(packed, viewport=(x_off, y_off, packed.shape[1], packed.shape[0]))
     return texture
 
@@ -74,13 +74,15 @@ class SimpleColorTriangle:
 
         # load life pattern
         self.lif_size = 1024
-        
 
+        # framebuffers
         self.front = FBO(self.ctx, self.lif_size)
         self.back = FBO(self.ctx, self.lif_size)
-        self.display = FBO(self.ctx, self.lif_size * 2)        
+        self.display = FBO(self.ctx, self.lif_size * 2)
 
-        successors, s_table, view_table = create_callahan_table()
+        _, s_table, _ = create_callahan_table()
+
+        self.pop_buffer = self.ctx.buffer(data=np.zeros(1, dtype="uint32").tobytes())
 
         # upload the reshaped, normalised texture
         self.callahan_texture = square_red_texture(self.ctx, 256, dtype="f4")
@@ -93,24 +95,13 @@ class SimpleColorTriangle:
         )
         self.gol_prog = shader_from_file(self.ctx, "callahan.vert", "callahan.frag")
         self.tex_prog = shader_from_file(self.ctx, "tex_quad.vert", "tex_quad.frag")
-
-        quad = np.array(
-            [[-1, -1, 0, 0], [-1, 1, 0, 1], [1, 1, 1, 1], [1, -1, 1, 0]]
-        ).astype("f4")
-        quad_ixs = np.array([0, 1, 3, 2]).astype("u4")
+        quad = np.array([[-1, -1], [-1, 1], [1, -1], [1, 1]]).astype("f4")
         vbo = self.ctx.buffer(quad.tobytes())
-        ibo = self.ctx.buffer(quad_ixs.tobytes())
 
         # We control the 'in_vert' and `in_color' variables
-        self.unpack_vao = self.ctx.simple_vertex_array(
-            self.unpack_prog, vbo, "in_vert", "in_tex", index_buffer=ibo
-        )
-        self.gol_vao = self.ctx.simple_vertex_array(
-            self.gol_prog, vbo, "in_vert", "in_tex", index_buffer=ibo
-        )
-        self.tex_vao = self.ctx.simple_vertex_array(
-            self.tex_prog, vbo, "in_vert", "in_tex", index_buffer=ibo
-        )
+        self.unpack_vao = self.ctx.simple_vertex_array(self.unpack_prog, vbo, "pos")
+        self.gol_vao = self.ctx.simple_vertex_array(self.gol_prog, vbo, "pos")
+        self.tex_vao = self.ctx.simple_vertex_array(self.tex_prog, vbo, "pos")
 
         self.unpack_prog["in_size"].value = self.lif_size
         self.gol_prog["quadTexture"].value = 0
