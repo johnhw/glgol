@@ -22,9 +22,9 @@ def create_callahan_table():
     """Generate the lookup table for the cells."""
     successors = {}
     # map predecessors to successor
-    s_table = np.zeros((16,16,16,16), dtype=np.float32)
+    s_table = np.zeros((16,16,16,16), dtype=np.uint8)
     # map 16 "colours" to 2x2 cell patterns
-    view_table = np.zeros((16,2,2), dtype=np.float32)
+    view_table = np.zeros((16,2,2), dtype=np.uint8)
 
     def life(*args):
         n = sum(args[1:])

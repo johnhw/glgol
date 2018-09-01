@@ -29,12 +29,6 @@ def fit_life(ctx, packed, lif_size, texture):
     texture.write(packed, viewport=(x_off, y_off, packed.shape[1], packed.shape[0]))
     return texture
 
-
-def load_life_texture(ctx, fname, size, texture):
-    lif = load_life(fname)
-    return fit_life(ctx, pack_life(lif), size, texture)
-
-
 def square_red_texture(ctx, size, dtype="f1"):
     texture = ctx.texture((size, size), components=1, dtype=dtype)
     texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
@@ -70,7 +64,8 @@ class SimpleColorTriangle:
     def __init__(self):
         self.skeleton = skel.GLSkeleton(draw_fn=self.render, window_size=(800, 800))
         self.ctx = self.skeleton.get_context()
-        self.frame = 0
+        self.frame_ctr = 0
+        self.population = 0
 
         # load life pattern
         self.lif_size = 1024
@@ -85,10 +80,12 @@ class SimpleColorTriangle:
         self.pop_buffer = self.ctx.buffer(data=np.zeros(1, dtype="uint32").tobytes())
 
         # upload the reshaped, normalised texture
-        self.callahan_texture = square_red_texture(self.ctx, 256, dtype="f4")
-        self.callahan_texture.write(s_table.reshape(256, 256) / 15.0)
+        self.callahan_texture = square_red_texture(self.ctx, 256)
+        self.callahan_texture.write(s_table * 17)
 
-        load_life_texture(self.ctx, "breeder.lif", self.lif_size, self.front.texture)
+        fname="breeder.lif"
+        fit_life(self.ctx, pack_life(load_life(fname)), self.lif_size, self.front.texture)
+        
 
         self.unpack_prog = shader_from_file(
             self.ctx, "unpack_callahan.vert", "unpack_callahan.frag"
@@ -96,20 +93,22 @@ class SimpleColorTriangle:
         self.gol_prog = shader_from_file(self.ctx, "callahan.vert", "callahan.frag")
         self.tex_prog = shader_from_file(self.ctx, "tex_quad.vert", "tex_quad.frag")
         quad = np.array([[-1, -1], [-1, 1], [1, -1], [1, 1]]).astype("f4")
-        vbo = self.ctx.buffer(quad.tobytes())
+        quad_vbo = self.ctx.buffer(quad.tobytes())
 
-        # We control the 'in_vert' and `in_color' variables
-        self.unpack_vao = self.ctx.simple_vertex_array(self.unpack_prog, vbo, "pos")
-        self.gol_vao = self.ctx.simple_vertex_array(self.gol_prog, vbo, "pos")
-        self.tex_vao = self.ctx.simple_vertex_array(self.tex_prog, vbo, "pos")
+        self.unpack_vao = self.ctx.simple_vertex_array(
+            self.unpack_prog, quad_vbo, "pos"
+        )
+        self.gol_vao = self.ctx.simple_vertex_array(self.gol_prog, quad_vbo, "pos")
+        self.tex_vao = self.ctx.simple_vertex_array(self.tex_prog, quad_vbo, "pos")
 
         self.unpack_prog["in_size"].value = self.lif_size
         self.gol_prog["quadTexture"].value = 0
         self.gol_prog["callahanTexture"].value = 1
+
         self.skeleton.run()
 
     def render(self):
-        frame_offset = self.frame % 2
+        frame_offset = self.frame_ctr % 2
 
         self.ctx.clear(0.0, 0.0, 0.0)
 
@@ -125,7 +124,11 @@ class SimpleColorTriangle:
         self.display.offset = -frame_offset
         with self.display:
             self.back.use()
+            # read population back from the buffer
+            self.pop_buffer.bind_to_storage_buffer(binding=0)
             self.unpack_vao.render(mode=moderngl.TRIANGLE_STRIP)
+            self.population = np.frombuffer(self.pop_buffer.read(), dtype=np.uint32)[0]
+
         self.display.texture.build_mipmaps()  # ensure mip-mapping is rebuilt
 
         # now render to the screen
@@ -139,7 +142,7 @@ class SimpleColorTriangle:
         self.tex_vao.render(mode=moderngl.TRIANGLE_STRIP)
 
         # flip buffers
-        self.frame += 1
+        self.frame_ctr += 1
         self.front, self.back = self.back, self.front
 
 

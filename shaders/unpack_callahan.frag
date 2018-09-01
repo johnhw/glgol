@@ -1,5 +1,10 @@
-#version 330 core
+#version 430 core
 #define M_PI 3.1415926535897932384626433832795
+// count number of times the shader was used
+ layout(std430, binding = 0) buffer population
+ {
+     int popCount;
+ };
 
 // from the vertex shader
 in vec2 texCoord;
@@ -41,4 +46,6 @@ void main(void)
      // look up the texture at the UV coordinates
     frag_color = vec4(col, col, col, frame_pos*(col+0.55));
 
+    if(frag_color.r>0.0)
+        atomicAdd(popCount, 1);
 }
