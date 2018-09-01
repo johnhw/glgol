@@ -2,9 +2,9 @@
 #define M_PI 3.1415926535897932384626433832795
 
 // from the vertex shader
-in vec2 texCoord;
+in vec2 v_tex;
 
-uniform sampler2D quadTexture;
+uniform sampler2D tex;
 uniform float in_size;
 
 layout(location=0) out vec4 frag_color;
@@ -22,10 +22,10 @@ void main(void)
         frame_pos=0.1;
     
 
-    int odd_row = int(texCoord.x * 2 * in_size) % 2;
-    int odd_col = int(texCoord.y * 2 * in_size) % 2;
+    int odd_row = int(v_tex.x * 2 * in_size) % 2;
+    int odd_col = int(v_tex.y * 2 * in_size) % 2;
     
-    float fpacked = texture2D(quadTexture, texCoord).x;
+    float fpacked = texture2D(tex, v_tex).x;
     int pcked = int(fpacked*15);
     int a = ((pcked >> 0) & 1);
     int b = ((pcked >> 1) & 1);

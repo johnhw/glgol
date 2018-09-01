@@ -1,18 +1,8 @@
 import numpy as np
 import pyglet
-from pyglet.gl import *
 
-import json
+import moderngl
 # sphere stuff
-import pyspheregl.utils.glskeleton as skeleton
-import pyspheregl.utils.np_vbo as np_vbo
-import pyspheregl.utils.shader as shader
-from pyspheregl.utils.shader import shader_from_file
-from pyspheregl.utils.np_vbo import VBuf, IBuf
-
-import pyspheregl.utils.transformations as tn
-from pyspheregl.utils.graphics_utils import make_unit_quad_tile
-import time
 import timeit
 # high precision timing
 wall_clock = timeit.default_timer
