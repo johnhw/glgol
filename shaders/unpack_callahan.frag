@@ -14,23 +14,17 @@ uniform float in_size;
 
 layout(location=0) out vec4 frag_color;
 
-uniform int frame;
-uniform int strobe;
+flat in float fragStrobeLight;
+
 
 void main(void)
 {          
-    float frame_pos = float(frame % strobe) / strobe;    
 
-    if(frame_pos==0)
-        frame_pos=1.0;
-    else
-        frame_pos=0.1;
-    
 
     int odd_row = int(texCoord.x * 2 * in_size) % 2;
     int odd_col = int(texCoord.y * 2 * in_size) % 2;
     
-    float fpacked = texture2D(tex, texCoord).x;
+    float fpacked = texture(tex, texCoord).x;
     int pcked = int(fpacked*15);
     int a = ((pcked >> 0) & 1);
     int b = ((pcked >> 1) & 1);
@@ -44,7 +38,7 @@ void main(void)
      + (odd_row)*(1-odd_col)*c + (odd_row)*odd_col*d;
 
      // look up the texture at the UV coordinates
-    frag_color = vec4(col, col, col, frame_pos*(col+0.55));
+    frag_color = vec4(col, col, col, fragStrobeLight);
 
     if(frag_color.r>0.0)
         atomicAdd(popCount, 1);

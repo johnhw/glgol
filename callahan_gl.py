@@ -9,6 +9,9 @@ import time
 import lifeparsers
 from callahan import pack_life, load_life, create_callahan_table
 import os
+import glmat
+
+
 
 
 def shader_from_file(ctx, vtx, frag):
@@ -64,6 +67,8 @@ class FBO:
     def __exit__(self, type, value, tb):
         self.scope.__exit__(type, value, tb)
 
+def set_matrix(prog, uniform, x):
+    prog[uniform].write(x.T.astype('f4').tobytes())
 
 class CallahanGL:
     def setup_gl(self):
@@ -91,6 +96,8 @@ class CallahanGL:
         self.gol_prog = shader_from_file(self.ctx, "callahan.vert", "callahan.frag")
         # Simple textured quad shader
         self.tex_prog = shader_from_file(self.ctx, "tex_quad.vert", "tex_quad.frag")
+        self.black_prog = shader_from_file(self.ctx, "black.vert", "black.frag")
+        self.black_prog["alpha"].value = 0.25
         self.unpack_prog["in_size"].value = self.lif_size
         self.gol_prog["quadTexture"].value = 0
         self.gol_prog["callahanTexture"].value = 1
@@ -107,6 +114,12 @@ class CallahanGL:
         self.unpack_vao = make_quad_vao(self.unpack_prog)
         self.gol_vao = make_quad_vao(self.gol_prog)
         self.tex_vao = make_quad_vao(self.tex_prog)
+        self.black_vao = make_quad_vao(self.black_prog)
+
+    def setup_matrices(self):
+        self.model_view = glmat.lookat((0,0,0.7), (0,0,0), (0,1,0)).astype(np.float32)        
+        self.projection = glmat.perspective(40, self.skeleton.window.width/self.skeleton.window.height, 0.1, 100).astype(np.float32)
+        
 
     def __init__(self):
         self.lif_size = 2048
@@ -114,6 +127,7 @@ class CallahanGL:
         self.setup_gl()
         self.load_shaders()
         self.setup_geometry()
+        self.setup_matrices()
 
         s_table = create_callahan_table()
         # upload the reshaped, normalised texture
@@ -148,6 +162,17 @@ class CallahanGL:
         self.display.offset = -frame_offset
         with self.display:
             self.back.use()
+            self.unpack_prog["strobe"].value=4
+            self.unpack_prog["frame"].value=self.skeleton.frames
+            self.unpack_prog["strobe_exp"].value=18
+            
+            self.ctx.enable(moderngl.BLEND)
+
+
+            self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
+            self.black_vao.render(mode=moderngl.TRIANGLE_STRIP)
+
+            self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE
             # read population back from the buffer
             self.pop_buffer.bind_to_storage_buffer(binding=0)
             self.unpack_vao.render(mode=moderngl.TRIANGLE_STRIP)
@@ -170,6 +195,10 @@ class CallahanGL:
             pass
 
         self.display.use()
+        set_matrix(self.tex_prog, "modelview", self.model_view)
+        set_matrix(self.tex_prog, "projection", self.projection)
+        
+        
         self.tex_vao.render(mode=moderngl.TRIANGLE_STRIP)
 
         # flip buffers

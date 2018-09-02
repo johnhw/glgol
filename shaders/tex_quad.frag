@@ -6,4 +6,5 @@ uniform sampler2D tex;
 void main() {
     // We're not interested in changing the alpha value
     fragColor = texture(tex, texCoord).xxxx;
+        
 }
