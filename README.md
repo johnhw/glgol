@@ -1,53 +1,84 @@
-# glgol
-GLSL GoL shader test
+# GLSL Game of Life shader test
 
 Implements Paul Callahan's fast 2x2 block Life algorithm, entirely on the GPU. Implemented as GLSL shaders, using a lookup table stored in a small (256x256) single channel texture. This provides a relatively fast algorithm which will work for any outer-totalistic CA.
 
-It would probably be more sensible to use compute shaders rather than colour buffers for this purpose.
+
 
 ### Structure
 
 * The original pattern is packed into a 16 state format (2x2 binary cells -> one 16 state "block").
 
-        ab
-        cd
+        +---+
+        |a b|
+        |c d|
+        +---+
 
         packed = a + (b << 1) + (c << 2) + (d << 3)
 
 
 * A lookup table mapping every 4x4 "superblock" to a 2x2 successor is created and stored as a texture. This encodes the Life rule
-(or any other outer-totalistic rule)
+(or any other outer-totalistic rule). F' means the successor of cell F
+in the next generation.
 
 
         4x4    -> 2x2 centre
 
-        abcd
-        eFGh   -> F'G'   
-        iJKl      J'K'
-        mnop  
+       +-------+
+       |a b c d|      +------+       
+       |e F G h|   -> | F' G'|          
+       |i J K l|      | J' K'|                   
+       |m n o p|      +------+  
+       +-------+  
 
 
 Then split into 4 2x2 parts, with the next NW' being the centre block in the next generation (note this introduces an offset, but this is easily compensated for)
-
-        NW = ab   NE =  cd
-             eF         Gh
-
-        SE = iJ   SW =  Kl
-            mn          op
  
-        NW' =   F'G'
-                J'K'
+             +---+         +---+
+        NW = |a b|    NE = |c d|
+             |e F|         |G h|
+             +---+         +---+
 
-The final table maps each 2x2 superblock of 2x2 blocks to a new 2x2 block NX
+             +---+         +---+
+        SE = |i J|    SW = |K l|
+             |m n|         |o p|
+             +---+         +---+
 
-        NW NE  -> NX _
-        SW SE     _  _
+             +----+
+        NW'= |F'G'|
+             |J'K'|
+             +----+
+
+The final table maps each 2x2 superblock of 2x2 blocks to a new 2x2 block NX, offset by one cell to the northwest.
+
+        +-----+     +------+
+        |NW NE|  -> |NW' * |
+        |SW SE|     |*   * |
+        +-----+     +------+
+
+        lookup_table[NW, NE, SW, SE] = NW'        
+
+This creates a 16x16x16x16 lookup table, each entry being a 4 bit code NW'. This is reshaped to a 256x256 array before upload to the GPU, as 4D
+textures are not supported directl in OpenGL.
 
 * In each frame:
-    * A shader (`gol_shader`) computes the successors of each block in the next frame
-    * A second shader (`unpack_shader`) then unpacks from the block format back into the 2x2 binary cells for display
+    * A shader (`gol_shader`) computes the successors of each block in the next frame, writing to a texture-backed framebuffer.
+    * A second shader (`unpack_shader`) unpacks from the block format back into the 2x2 binary cells for display in a second framebuffer.
+    * This is finally rendered onto a single textured quad (`tex_shader`) onto the screen.
 
 
+### OpenGL implementation
+* It would probably be more sensible to use compute shaders rather than colour framebuffers for this purpose.
+* Atomic buffer operations are used to provide a cell population count
+as the unpacking of cells progresses
+* `texelFetch()` is used to look up exact entries in the lookup table.
+* `texelGatherOffset()` is used to gather the four neighbours of a block in a single call.
+
+The entire Life algorithm as run on the GPU is just:
+
+        ivec4 q = ivec4(textureGatherOffset(lifeTex, texCoord, ivec2(-f,-f)).wxzy * 15);    
+        nextGen = texelFetch(callahanLUT, ivec2((q.z * 16 + q.w), (q.x * 16 + q.y)), 0).x;    
+where `f` is a frame offset (to compensate for pixel shift on each frame),
+`lifeTex` is the sampler holding the current generation, `callahanLUT` is the sampler holding the lookup table, `nextGen` is the next generation as a 16-state block state.
 
 ### 2x2 Algorithm
 This is Paul's original explanation of the algorithm:
