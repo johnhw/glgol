@@ -12,14 +12,13 @@ in vec2 texCoord;
 uniform sampler2D tex;
 uniform float in_size;
 
-layout(location=0) out vec4 frag_color;
+layout(location=0) out vec4 fragColor;
 
 flat in float fragStrobeLight;
 
 
 void main(void)
 {          
-
 
     int odd_row = int(texCoord.x * 2 * in_size) % 2;
     int odd_col = int(texCoord.y * 2 * in_size) % 2;
@@ -34,12 +33,12 @@ void main(void)
     float col;
 
     // select the appropriate pixel to write out
-    col = (1-odd_row) * (1-odd_col) * a + (1-odd_row)*odd_col * b
-     + (odd_row)*(1-odd_col)*c + (odd_row)*odd_col*d;
+    col =   a* (1-odd_row) * (1-odd_col)  +   b * (1-odd_row) * odd_col +
+            c * (odd_row) * (1-odd_col) +     d * (odd_row) * odd_col;
 
      // look up the texture at the UV coordinates
-    frag_color = vec4(col, col, col, fragStrobeLight);
+    fragColor = vec4(col, col, col, fragStrobeLight);
 
-    if(frag_color.r>0.0)
+    if(fragColor.r>0.0)
         atomicAdd(popCount, 1);
 }

@@ -4,14 +4,14 @@
 // from the vertex shader
 in vec2 texCoord;
 
-uniform sampler2D quadTexture;
-uniform sampler2D callahanTexture;
-layout(location=0) out float frag_color;
+uniform sampler2D lifeTex;
+uniform sampler2D callahanLUT;
+layout(location=0) out float nextGen;
 uniform int frameOffset;
 
 void main(void)
 {               
-    ivec4 q = ivec4(textureGatherOffset(quadTexture, texCoord, ivec2(-frameOffset,-frameOffset)).wxzy * 15);    
-    frag_color = texelFetch(callahanTexture, ivec2((q.z * 16 + q.w), (q.x * 16 + q.y)), 0).x;          
-
+    ivec4 q = ivec4(textureGatherOffset(lifeTex, texCoord, ivec2(-frameOffset,-frameOffset)).wxzy * 15);    
+    nextGen = texelFetch(callahanLUT, ivec2((q.z * 16 + q.w), (q.x * 16 + q.y)), 0).x;  
+    
 }

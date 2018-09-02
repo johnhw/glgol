@@ -99,8 +99,8 @@ class CallahanGL:
         self.black_prog = shader_from_file(self.ctx, "black.vert", "black.frag")
         self.black_prog["alpha"].value = 0.25
         self.unpack_prog["in_size"].value = self.lif_size
-        self.gol_prog["quadTexture"].value = 0
-        self.gol_prog["callahanTexture"].value = 1
+        self.gol_prog["lifeTex"].value = 0
+        self.gol_prog["callahanLUT"].value = 1
         self.unpack_prog["strobe"].value=1
         self.unpack_prog["strobe_exp"].value=1
 
