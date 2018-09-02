@@ -129,6 +129,8 @@ class CallahanGL:
         self.setup_geometry()
         self.setup_matrices()
 
+        self.track = [-0.5, 0]
+
         s_table = create_callahan_table()
         # upload the reshaped, normalised texture
         self.callahan_texture = square_single_channel_texture(
@@ -162,17 +164,17 @@ class CallahanGL:
         self.display.offset = -frame_offset
         with self.display:
             self.back.use()
-            self.unpack_prog["strobe"].value=4
+            self.unpack_prog["strobe"].value=30
             self.unpack_prog["frame"].value=self.skeleton.frames
-            self.unpack_prog["strobe_exp"].value=18
+            self.unpack_prog["strobe_exp"].value=1
             
             self.ctx.enable(moderngl.BLEND)
 
 
-            self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
-            self.black_vao.render(mode=moderngl.TRIANGLE_STRIP)
+            #self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
+            #self.black_vao.render(mode=moderngl.TRIANGLE_STRIP)
 
-            self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE
+            self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
             # read population back from the buffer
             self.pop_buffer.bind_to_storage_buffer(binding=0)
             self.unpack_vao.render(mode=moderngl.TRIANGLE_STRIP)
@@ -195,6 +197,9 @@ class CallahanGL:
             pass
 
         self.display.use()
+
+        # translate to smoothly track the location
+        self.model_view = glmat.translate([2*self.track[0]/self.lif_size, 2*self.track[1]/self.lif_size, 0]).astype(np.float32) @ self.model_view
         set_matrix(self.tex_prog, "modelview", self.model_view)
         set_matrix(self.tex_prog, "projection", self.projection)
         
