@@ -77,15 +77,15 @@ textures are not supported directly in OpenGL.
     * A second shader (`unpack_shader`) unpacks from the block format back into the 2x2 binary cells for display in a second texture-backed framebuffer.
     * This is finally rendered onto a single textured quad (`tex_shader`) onto the screen.
 
-                   +------------------+
-                   | 16 state CA      |--->| unpack_shader |>+
-                +->| NxN 1ch. texture |                      |
-                |  +------------------+             +--------------------+
-                |    |                              |2 state CA          |
-                |    +->| gol_shader |>-+           |2Nx2N 1 ch. texture |
-                |                       |           +--------------------+
-                +-----------------------+                    |
-                   (next generation)                         +--->| tex_shader |--> screen
+                   +---------------+
+                   | 16 state CA   |--->| unpack_shader |>-------+
+                +->| NxN 1ch. tex. |                             |
+                |  +---------------+             +-----------------+
+                |    |                           |2 state CA       |
+                |    +->| gol_shader |>-+        |2Nx2N 1 ch. tex. |
+                |                       |        +-----------------+
+                +-----------------------+          |
+                   (next generation)               +--->| tex_shader |--> screen
 
             
 
