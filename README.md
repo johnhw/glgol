@@ -13,7 +13,9 @@ Implements Paul Callahan's fast 2x2 block Life algorithm, entirely on the GPU. I
         |c d|
         +---+
 
+        # packed is a 4 bit integer code for one block
         packed = a + (b << 1) + (c << 2) + (d << 3)
+        
 
 
 * A lookup table mapping every 4x4 "superblock" to a 2x2 successor is created and stored as a texture. This encodes the Life rule
@@ -21,7 +23,7 @@ Implements Paul Callahan's fast 2x2 block Life algorithm, entirely on the GPU. I
 in the next generation.
 
 
-        4x4    -> 2x2 centre
+        4x4    ->     2x2 centre in next generation
 
        +-------+
        |a b c d|      +------+       
@@ -88,9 +90,10 @@ This is Paul's original explanation of the algorithm:
 > that every 2x2 patch is determined by the 4x4 patch obtained by  
 > adding a one-cell border around it. This patch is itself composed  
 > of 4 2x2 patches. They aren't aligned with the center patch, but this  
-> turns out not be much of a problem. 
+> turns out not be much of a problem.   
+>  
 > Consider a 16-state CA based on an asymmetric 4-cell neighborhood  
-> consisting of a cell and its eastern, southern, and south-eastern neighbors.  
+> consisting of a cell and its eastern, southern, and south-eastern neighbors.    
 > Now we can embed 2x2 patches from any 2-state (Moore neighborhood or  
 > subset) CA into single cells on this CA. Suppose we derive the rule  
 > for determining the middle 2x2 patch from a 4x4 patch in the 2-state CA and  
@@ -103,6 +106,7 @@ This is Paul's original explanation of the algorithm:
 > individual cells (alternatively, we could derive 2 16-state CAs that  
 > cancel either other's shifts when applied one after the other; I  
 > chose not to implement this in order to avoid code duplication).  
+> 
 > So, once you accept that the 16-state 4-cell neighborhood CA can embed  
 > your 2-state CA, the next question is how to compute its rule efficiently.  
 > Well, this too be done with row-majored-ordered lists of  
@@ -125,11 +129,13 @@ This is Paul's original explanation of the algorithm:
 > G command only keeps a running display of the number of generations  
 > finished (every hundred) and the above seems to be the fastest Xlife can  
 > generate the pattern in practice.  
+> 
 > Now that I have this code, I can probably run some experiments faster.  
 > On the other hand, even something as simple as the population checks  
 > to determine stability are complicated (slightly) by the new method.  
 > Checking if subpatterns are destroyed, determining connected oscillators, etc.  
 > are all much easier after first unpacking the 2x2 patches into a  
 > list of single cells.  
+> 
 > --Paul  
 > 8 November 1997  
