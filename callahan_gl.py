@@ -101,6 +101,8 @@ class CallahanGL:
         self.unpack_prog["in_size"].value = self.lif_size
         self.gol_prog["quadTexture"].value = 0
         self.gol_prog["callahanTexture"].value = 1
+        self.unpack_prog["strobe"].value=1
+        self.unpack_prog["strobe_exp"].value=1
 
     def setup_geometry(self):
         quad = np.array([[-1, -1], [-1, 1], [1, -1], [1, 1]]).astype("f4")
@@ -117,19 +119,19 @@ class CallahanGL:
         self.black_vao = make_quad_vao(self.black_prog)
 
     def setup_matrices(self):
-        self.model_view = glmat.lookat((0,0,0.7), (0,0,0), (0,1,0)).astype(np.float32)        
-        self.projection = glmat.perspective(40, self.skeleton.window.width/self.skeleton.window.height, 0.1, 100).astype(np.float32)
+        self.model_view = glmat.lookat((-0.2,0,0.1), (0.0,0,0), (0,1,0)).astype(np.float32)        
+        self.projection = glmat.perspective(80, self.skeleton.window.width/self.skeleton.window.height, 0.1, 100).astype(np.float32)
         
 
     def __init__(self):
-        self.lif_size = 2048
+        self.lif_size = 4096
 
         self.setup_gl()
         self.load_shaders()
         self.setup_geometry()
         self.setup_matrices()
 
-        self.track = [-0.5, 0]
+        self.track = [0.75, 0]
 
         s_table = create_callahan_table()
         # upload the reshaped, normalised texture
@@ -138,7 +140,7 @@ class CallahanGL:
         )
 
         # load life pattern
-        fname = "pat/breeder.lif"
+        fname = "pat/rake-c2-2c5ship.lif"
         packed = pack_life(load_life(fname))
         packed_to_texture(self.ctx, packed, self.lif_size, self.front.texture)
         self.population = 0
@@ -164,9 +166,9 @@ class CallahanGL:
         self.display.offset = -frame_offset
         with self.display:
             self.back.use()
-            self.unpack_prog["strobe"].value=30
+            
             self.unpack_prog["frame"].value=self.skeleton.frames
-            self.unpack_prog["strobe_exp"].value=1
+           
             
             self.ctx.enable(moderngl.BLEND)
 
@@ -199,7 +201,7 @@ class CallahanGL:
         self.display.use()
 
         # translate to smoothly track the location
-        self.model_view = glmat.translate([2*self.track[0]/self.lif_size, 2*self.track[1]/self.lif_size, 0]).astype(np.float32) @ self.model_view
+        self.model_view = self.model_view @ glmat.translate([2*self.track[0]/self.lif_size, 2*self.track[1]/self.lif_size, 0]).astype(np.float32) 
         set_matrix(self.tex_prog, "modelview", self.model_view)
         set_matrix(self.tex_prog, "projection", self.projection)
         
