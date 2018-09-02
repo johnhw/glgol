@@ -10,10 +10,9 @@
 in vec2 texCoord;
 
 uniform sampler2D tex;
+
 uniform float in_size;
-
 layout(location=0) out vec4 fragColor;
-
 flat in float fragStrobeLight;
 
 
@@ -39,6 +38,6 @@ void main(void)
      // look up the texture at the UV coordinates
     fragColor = vec4(col, col, col, fragStrobeLight);
 
-    if(fragColor.r>0.0)
+    if(col>0.0)
         atomicAdd(popCount, 1);
 }

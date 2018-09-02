@@ -38,6 +38,28 @@ def parse_rule(rule):
     return  digits(birth_survive[0]), digits(birth_survive[1])    
 
 
+# table maps 16 state cell, encoded as:
+# ab
+# cd
+# packed = a + (b<<1) + (c<<2) + (d<<3)
+# to RGBA
+
+def callahan_colour_table():
+    from colorsys import yiq_to_rgb
+    colour_table = np.ones((16,4), dtype=np.uint8)
+    for iv in range(16):
+        a = iv & 1
+        b = (iv>>1) & 1
+        c = (iv>>2) & 1
+        d = (iv>>3) & 1
+        y = (a+b+c+d) / 4.0
+        i = ((a-b) + (c-d)) / 3.0
+        q = ((a-c) + (b-d)) / 3.0        
+        colour_table[iv, :3] = [int(x*255) for x in yiq_to_rgb(y, i, q)]
+    return colour_table
+
+        
+
 def create_callahan_table(rule='b3s23'):
     """Generate the lookup table for the cells."""    
     # map predecessors to successor

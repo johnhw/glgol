@@ -7,11 +7,9 @@ import numpy as np
 import modern_gl_skeleton as skel
 import time
 import lifeparsers
-from callahan import pack_life, load_life, create_callahan_table
+from callahan import pack_life, load_life, create_callahan_table, callahan_colour_table
 import os
 import glmat
-
-
 
 
 def shader_from_file(ctx, vtx, frag):
@@ -67,8 +65,10 @@ class FBO:
     def __exit__(self, type, value, tb):
         self.scope.__exit__(type, value, tb)
 
+
 def set_matrix(prog, uniform, x):
-    prog[uniform].write(x.T.astype('f4').tobytes())
+    prog[uniform].write(x.T.astype("f4").tobytes())
+
 
 class CallahanGL:
     def setup_gl(self):
@@ -87,6 +87,7 @@ class CallahanGL:
         )
         self.colour_scope = self.ctx.scope(self.colour_fbo)
 
+
     def load_shaders(self):
         # shader to convert packed 4 bit format to binary pixels
         self.unpack_prog = shader_from_file(
@@ -101,8 +102,8 @@ class CallahanGL:
         self.unpack_prog["in_size"].value = self.lif_size
         self.gol_prog["lifeTex"].value = 0
         self.gol_prog["callahanLUT"].value = 1
-        self.unpack_prog["strobe"].value=1
-        self.unpack_prog["strobe_exp"].value=1
+        self.unpack_prog["strobe"].value = 1
+        self.unpack_prog["strobe_exp"].value = 1
 
     def setup_geometry(self):
         quad = np.array([[-1, -1], [-1, 1], [1, -1], [1, 1]]).astype("f4")
@@ -119,19 +120,26 @@ class CallahanGL:
         self.black_vao = make_quad_vao(self.black_prog)
 
     def setup_matrices(self):
-        self.model_view = glmat.lookat((-0.2,0,0.1), (0.0,0,0), (0,1,0)).astype(np.float32)        
-        self.projection = glmat.perspective(80, self.skeleton.window.width/self.skeleton.window.height, 0.1, 100).astype(np.float32)
-        
+        self.model_view = glmat.lookat((0.0, 0, 1.0), (0.0, 0, 0), (0, 1, 0)).astype(
+            np.float32
+        )
+        self.projection = glmat.perspective(
+            80, self.skeleton.window.width / self.skeleton.window.height, 0.1, 100
+        ).astype(np.float32)
+        # fix the projection matrix
+        set_matrix(self.tex_prog, "projection", self.projection)
 
     def __init__(self):
-        self.lif_size = 4096
+        self.lif_size = 1024
 
         self.setup_gl()
         self.load_shaders()
         self.setup_geometry()
         self.setup_matrices()
 
-        self.track = [0.75, 0]
+        # movement rate for tracking position
+        # (e.g. following a spaceship)
+        self.track = [0.0, 0]
 
         s_table = create_callahan_table()
         # upload the reshaped, normalised texture
@@ -140,7 +148,7 @@ class CallahanGL:
         )
 
         # load life pattern
-        fname = "pat/rake-c2-2c5ship.lif"
+        fname = "pat/breeder.lif"
         packed = pack_life(load_life(fname))
         packed_to_texture(self.ctx, packed, self.lif_size, self.front.texture)
         self.population = 0
@@ -162,20 +170,15 @@ class CallahanGL:
             self.gol_prog["frameOffset"].value = frame_offset
             self.gol_vao.render(mode=moderngl.TRIANGLE_STRIP)
 
+        
         # render to the display buffer
         self.display.offset = -frame_offset
         with self.display:
             self.back.use()
-            
-            self.unpack_prog["frame"].value=self.skeleton.frames
-           
-            
+
+            self.unpack_prog["frame"].value = self.skeleton.frames
+
             self.ctx.enable(moderngl.BLEND)
-
-
-            #self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
-            #self.black_vao.render(mode=moderngl.TRIANGLE_STRIP)
-
             self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
             # read population back from the buffer
             self.pop_buffer.bind_to_storage_buffer(binding=0)
@@ -184,6 +187,7 @@ class CallahanGL:
 
         # ensure mip-mapping is rebuilt
         self.display.texture.build_mipmaps()
+        self.display.texture.filter = moderngl.LINEAR_MIPMAP_LINEAR, moderngl.NEAREST
 
         # now render to the screen
         self.ctx.viewport = (
@@ -194,18 +198,19 @@ class CallahanGL:
         )
 
         # bugfix? without this, rendering is stuck
-        # in single channel mode. This restores the colour rendering
+        # in single channel mode. This restores the colour rendering.
         with self.colour_scope:
             pass
-
+     
         self.display.use()
 
         # translate to smoothly track the location
-        self.model_view = self.model_view @ glmat.translate([2*self.track[0]/self.lif_size, 2*self.track[1]/self.lif_size, 0]).astype(np.float32) 
+        self.model_view = self.model_view @ glmat.translate(
+            [2 * self.track[0] / self.lif_size, 2 * self.track[1] / self.lif_size, 0]
+        ).astype(np.float32)
         set_matrix(self.tex_prog, "modelview", self.model_view)
-        set_matrix(self.tex_prog, "projection", self.projection)
         
-        
+
         self.tex_vao.render(mode=moderngl.TRIANGLE_STRIP)
 
         # flip buffers

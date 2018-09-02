@@ -2,9 +2,11 @@
 
 Implements Paul Callahan's fast 2x2 block Life algorithm, entirely on the GPU. Implemented as GLSL shaders, using a lookup table stored in a small (256x256) single channel texture. This provides a relatively fast algorithm which will work for any outer-totalistic CA.
 
+![Gosper's breeder, running in shader](breeder.png)
+
 This approach rewrites the update algorithm from a process on 3x3 neighbourhoods of 2 state cells to an equivalent 16 state CA on 2x2 neighbourhoods, where each of these 16-state "supercells" represents a 2x2 block of the underlying binary CA. This clever trick reduces the number of accesses per update for a naive algorithm from 9N to 4N, with a simple 64K lookup table to look up the result of each neigbhourhood.
 
-This is particularly easy to implement on GPUs, which have specific capability to sample 2x2 neighbourhoods for texture filtering purposes.
+This is particularly easy to implement on GPUs, which have dedicated capability to sample 2x2 neighbourhoods for texture filtering purposes.
 
 ### Caveats
 While the base algorithm is fast, it is unable to exploit any of the sparsity of the CA and every cell must be processed in each generation. Some type of tile based approach with relatively large subtiles (perhaps 128x128) might be a more efficient GPU based approach. 
@@ -86,7 +88,6 @@ textures are not supported directly in OpenGL.
                 |                       |        +-----------------+
                 +-----------------------+          |
                    (next generation)               +--->| tex_shader |--> screen
-
             
 
 #### Notes
