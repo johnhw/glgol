@@ -9,37 +9,39 @@ It would probably be more sensible to use compute shaders rather than colour buf
 
 * The original pattern is packed into a 16 state format (2x2 binary cells -> one 16 state "block").
 
-    ab
-    cd
+        ab
+        cd
 
-    packed = a + (b << 1) + (c << 2) + (d << 3)
+        packed = a + (b << 1) + (c << 2) + (d << 3)
 
 
 * A lookup table mapping every 4x4 "superblock" to a 2x2 successor is created and stored as a texture. This encodes the Life rule
 (or any other outer-totalistic rule)
 
-    4x4    -> 2x2 centre
 
-    abcd
-    eFGh   -> F'G'   
-    iJKl      J'K'
-    mnop  
+        4x4    -> 2x2 centre
+
+        abcd
+        eFGh   -> F'G'   
+        iJKl      J'K'
+        mnop  
+
 
 Then split into 4 2x2 parts, with the next NW' being the centre block in the next generation (note this introduces an offset, but this is easily compensated for)
 
-    NW = ab   NE =  cd
-         eF         Gh
+        NW = ab   NE =  cd
+             eF         Gh
 
-    SE = iJ   SW =  Kl
-         mn         op
-
-    NW' = F'G'
-          J'K'
+        SE = iJ   SW =  Kl
+            mn          op
+ 
+        NW' =   F'G'
+                J'K'
 
 The final table maps each 2x2 superblock of 2x2 blocks to a new 2x2 block NX
 
-    NW NE  -> NX _
-    SW SE     _  _
+        NW NE  -> NX _
+        SW SE     _  _
 
 * In each frame:
     * A shader (`gol_shader`) computes the successors of each block in the next frame
