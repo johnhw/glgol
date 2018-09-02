@@ -2,7 +2,15 @@
 
 Implements Paul Callahan's fast 2x2 block Life algorithm, entirely on the GPU. Implemented as GLSL shaders, using a lookup table stored in a small (256x256) single channel texture. This provides a relatively fast algorithm which will work for any outer-totalistic CA.
 
+This approach rewrites the update algorithm from a process on 3x3 neighbourhoods of 2 state cells to an equivalent 16 state CA on 2x2 neighbourhoods, where each of these 16-state "supercells" represents a 2x2 block of the underlying binary CA. This clever trick reduces the number of accesses per update for a naive algorithm from 9N to 4N, with a simple 64K lookup table to look up the result of each neigbhourhood.
 
+This is particularly easy to implement on GPUs, which have specific capability to sample 2x2 neighbourhoods for texture filtering purposes.
+
+### Caveats
+While the base algorithm is fast, it is unable to exploit any of the sparsity of the CA and every cell must be processed in each generation. Some type of tile based approach with relatively large subtiles (perhaps 128x128) might be a more efficient GPU based approach. 
+
+## Implementation
+The code is implemented in Python, using [ModernGL](https://github.com/cprogrammer1994/ModernGL) for OpenGL support, and [Pyglet](https://bitbucket.org/pyglet/pyglet/wiki/Home) to provide event and window management. A driver/GPU supporting OpenGL 4.3+ is required to provide storage buffers. Tested on an AMD R9 390.
 
 ### Structure
 
@@ -20,7 +28,7 @@ Implements Paul Callahan's fast 2x2 block Life algorithm, entirely on the GPU. I
 
 * A lookup table mapping every 4x4 "superblock" to a 2x2 successor is created and stored as a texture. This encodes the Life rule
 (or any other outer-totalistic rule). F' means the successor of cell F
-in the next generation.
+in the next generation after applying the Life rule.
 
 
         4x4    ->     2x2 centre in next generation
@@ -33,7 +41,7 @@ in the next generation.
        +-------+  
 
 
-Then split into 4 2x2 parts, with the next NW' being the centre block in the next generation (note this introduces an offset, but this is easily compensated for)
+This superblock is then split into 4 2x2 parts, with the NX' being the centre block in the next generation (note this introduces an offset, but this is easily compensated for)
  
              +---+         +---+
         NW = |a b|    NE = |c d|
@@ -46,30 +54,43 @@ Then split into 4 2x2 parts, with the next NW' being the centre block in the nex
              +---+         +---+
 
              +----+
-        NW'= |F'G'|
+        NX'= |F'G'|
              |J'K'|
              +----+
 
 The final table maps each 2x2 superblock of 2x2 blocks to a new 2x2 block NX, offset by one cell to the northwest.
 
         +-----+     +------+
-        |NW NE|  -> |NW' * |
+        |NW NE|  -> |NX' * |
         |SW SE|     |*   * |
         +-----+     +------+
 
         lookup_table[NW, NE, SW, SE] = NW'        
 
 This creates a 16x16x16x16 lookup table, each entry being a 4 bit code NW'. This is reshaped to a 256x256 array before upload to the GPU, as 4D
-textures are not supported directl in OpenGL.
+textures are not supported directly in OpenGL.
+
+### OpenGL implementation
 
 * In each frame:
     * A shader (`gol_shader`) computes the successors of each block in the next frame, writing to a texture-backed framebuffer.
-    * A second shader (`unpack_shader`) unpacks from the block format back into the 2x2 binary cells for display in a second framebuffer.
+    * A second shader (`unpack_shader`) unpacks from the block format back into the 2x2 binary cells for display in a second texture-backed framebuffer.
     * This is finally rendered onto a single textured quad (`tex_shader`) onto the screen.
 
+                   +------------------+
+                   | 16 state CA      |--->| unpack_shader |>+
+                +->| NxN 1ch. texture |                      |
+                |  +------------------+             +--------------------+
+                |    |                              |2 state CA          |
+                |    +->| gol_shader |>-+           |2Nx2N 1 ch. texture |
+                |                       |           +--------------------+
+                +-----------------------+                    |
+                   (next generation)                         +--->| tex_shader |--> screen
 
-### OpenGL implementation
-* It would probably be more sensible to use compute shaders rather than colour framebuffers for this purpose.
+            
+
+#### Notes
+* It might be more sensible to use compute shaders rather than colour framebuffers for this purpose.
 * Atomic buffer operations are used to provide a cell population count
 as the unpacking of cells progresses
 * `texelFetch()` is used to look up exact entries in the lookup table.
