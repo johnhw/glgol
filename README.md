@@ -67,9 +67,9 @@ The final table maps each 2x2 superblock of 2x2 blocks to a new 2x2 block NX, of
         |SW SE|     |*   * |
         +-----+     +------+
 
-        lookup_table[NW, NE, SW, SE] = NW'        
+        lookup_table[NW, NE, SW, SE] = NX'        
 
-This creates a 16x16x16x16 lookup table, each entry being a 4 bit code NW'. This is reshaped to a 256x256 array before upload to the GPU, as 4D
+This creates a 16x16x16x16 lookup table, each entry being a 4 bit code NX'. This is reshaped to a 256x256 array before upload to the GPU, as 4D
 textures are not supported directly in OpenGL.
 
 ### OpenGL implementation
@@ -99,13 +99,14 @@ as the unpacking of cells progresses
 
 The entire Life algorithm as run on the GPU is just:
 
-        ivec4 q = ivec4(textureGatherOffset(lifeTex, texCoord, ivec2(-f,-f)).wxzy * 15);    
+        ivec4 q = ivec4(textureGatherOffset(lifeTex, texCoord, ivec2(-f, -f)).wxzy * 15);    
         nextGen = texelFetch(callahanLUT, ivec2((q.z * 16 + q.w), (q.x * 16 + q.y)), 0).x;    
+
 where `f` is a frame offset (to compensate for pixel shift on each frame),
 `lifeTex` is the sampler holding the current generation, `callahanLUT` is the sampler holding the lookup table, `nextGen` is the next generation as a 16-state block state.
 
 ### 2x2 Algorithm
-This is Paul's original explanation of the algorithm:
+This is Paul Callahan's original explanation of the algorithm:
 
 > But there's a very nice kind of spatial packing that just happens to  
 > work for 2x2 patches (has it been used elsewhere?): Observe, trivially,  
