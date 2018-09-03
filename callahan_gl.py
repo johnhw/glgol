@@ -139,7 +139,7 @@ class CallahanGL:
 
         # movement rate for tracking position
         # (e.g. following a spaceship)
-        self.track = [0.0, 0]
+        self.track = [0.0, 0.0]
 
         s_table = create_callahan_table()
         # upload the reshaped, normalised texture
@@ -163,7 +163,7 @@ class CallahanGL:
 
         self.ctx.clear(0.0, 0.0, 0.0)
 
-        # # apply forward algorithm
+        # # apply forward algorithm, rendering from the front FBO to the back FBO
         with self.back:
             self.front.use()
             # adjust for pixel shift on each frame
@@ -202,6 +202,7 @@ class CallahanGL:
         with self.colour_scope:
             pass
      
+        # set the unpacked pixels as the current texture
         self.display.use()
 
         # translate to smoothly track the location
