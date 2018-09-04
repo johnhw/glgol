@@ -1,6 +1,67 @@
+"""
+Implements the lookup tables and manual packing/unpacking routines
+to operate in the 16 state CA.
+
+The encoding is as follows:
+
+* The original binary pattern is packed into a 16 state format (2x2 binary cells -> one 16 state "block").
+
+        +---+
+        |a b|
+        |c d|
+        +---+
+
+        # packed is a 4 bit integer code for one block
+        packed = a + (b << 1) + (c << 2) + (d << 3)
+        
+
+
+* A lookup table mapping every 4x4 "superblock" of binary cells to a 2x2 successor is created and stored as a texture. This encodes the Life rule
+(or any other outer-totalistic rule). F' means the successor of cell F
+in the next generation after applying the Life rule.
+
+
+        4x4    ->     2x2 centre in next generation
+
+       +-------+
+       |a b c d|      +------+       
+       |e F G h|   -> | F' G'|          
+       |i J K l|      | J' K'|                   
+       |m n o p|      +------+  
+       +-------+  
+
+
+This superblock is split into 4 2x2 parts, with the NX' being the centre block in the next generation (note this introduces an offset, but this is easily compensated for)
+ 
+             +---+         +---+
+        NW = |a b|    NE = |c d|
+             |e F|         |G h|
+             +---+         +---+
+
+             +---+         +---+
+        SE = |i J|    SW = |K l|
+             |m n|         |o p|
+             +---+         +---+
+
+             +----+
+        NX'= |F'G'|
+             |J'K'|
+             +----+
+
+So that the final table maps each 4x4 superblock to a new 2x2 block NX, offset by one cell to the northwest.
+
+        +-----+     +------+
+        |NW NE|  -> |NX' * |
+        |SW SE|     |*   * |
+        +-----+     +------+
+
+        lookup_table[NW, NE, SW, SE] = NX'       
+
+"""
 import numpy as np
 import lifeparsers
 import re
+
 
 
 def mkeven_integer(arr):
@@ -11,7 +72,7 @@ def mkeven_integer(arr):
 
 
 def pack_callahan(arr):
-    # pack into 4 bit 2x2 cell format
+    # pack a NumPy array into 16 state/4 bit 2x2 cell format
     return (
         arr[::2, ::2]
         + (arr[1::2, ::2] << 1)
@@ -32,10 +93,12 @@ def unpack_callahan(cal_arr):
 
 # parse a b3s23 style rule
 def parse_rule(rule):
-    birth_survive = re.findall(r'[bB]([0-9]+)\s*\/?\s*[sS]([0-9]+)', rule)[0]
+    birth_survive = re.findall(r"[bB]([0-9]+)\s*\/?\s*[sS]([0-9]+)", rule)[0]
+
     def digits(seq):
-        return [int(d) for d in seq]        
-    return  digits(birth_survive[0]), digits(birth_survive[1])    
+        return [int(d) for d in seq]
+
+    return digits(birth_survive[0]), digits(birth_survive[1])
 
 
 # table maps 16 state cell, encoded as:
@@ -44,30 +107,32 @@ def parse_rule(rule):
 # packed = a + (b<<1) + (c<<2) + (d<<3)
 # to RGBA
 
+
+
 def callahan_colour_table():
     from colorsys import yiq_to_rgb
-    colour_table = np.ones((16,4), dtype=np.uint8)
+
+    colour_table = np.ones((16, 4), dtype=np.uint8)
     for iv in range(16):
         a = iv & 1
-        b = (iv>>1) & 1
-        c = (iv>>2) & 1
-        d = (iv>>3) & 1
-        y = (a+b+c+d) / 4.0
-        i = ((a-b) + (c-d)) / 3.0
-        q = ((a-c) + (b-d)) / 3.0        
-        colour_table[iv, :3] = [int(x*255) for x in yiq_to_rgb(y, i, q)]
+        b = (iv >> 1) & 1
+        c = (iv >> 2) & 1
+        d = (iv >> 3) & 1
+        y = (a + b + c + d) / 4.0
+        i = ((a - b) + (c - d)) / 3.0
+        q = ((a - c) + (b - d)) / 3.0
+        colour_table[iv, :3] = [int(x * 255) for x in yiq_to_rgb(y, i, q)]
     return colour_table
 
-        
 
-def create_callahan_table(rule='b3s23'):
-    """Generate the lookup table for the cells."""    
+def create_callahan_table(rule="b3s23"):
+    """Generate the lookup table for the cells."""
     # map predecessors to successor
     s_table = np.zeros((16, 16, 16, 16), dtype=np.uint8)
     # map 16 "colours" to 2x2 cell patterns
 
     birth, survive = parse_rule(rule)
-    
+
     # apply the rule to the 3x3 block of cells
     def apply_rule(*args):
         n = sum(args[1:])

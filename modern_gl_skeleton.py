@@ -1,3 +1,15 @@
+"""
+Simple event handling skeleton which uses moderngl with pyglet
+
+pyglet is restricted to creating the context/window, and 
+handling mouse and key events from it. Other libraries such as GLFW
+could be used in place.
+
+The GLSkeleton class takes a number of callbacks to handle drawing,
+frame updates, mouse/key events, quitting and resizing.
+
+"""
+
 import sys, time, os
 import pyglet
 import moderngl
@@ -27,25 +39,16 @@ class GLSkeleton:
             )
 
         # attach the handlers for events
-        self.window.set_handler("on_draw", self.draw_fn)
-        if self.resize_fn is not None:
-            self.window.set_handler("on_resize", self.resize_fn)
+        self.window.set_handler("on_draw", self.on_draw)
 
-        events = {"on_key_press":(self.on_key, "press"),
-                  "on_key_release":(self.key_fn, "release"),
-                  "on_mouse_motion":(self.mouse_fn, "move"),
-                  "on_mouse_drag":(self.mouse_fn, "drag"),
-                  "on_mouse_scroll":(self.mouse_fn, "scroll"),
-                  "on_mouse_press":(self.key_fn, "press"),
-                  "on_mouse_release":(self.key_fn, "release"),                                    
-                  }
-
-        for event, handler in events.items():
-            fn, evt = handler
-            if fn is not None:
-                def handler(*args, **kwargs):                    
-                    fn(evt, *args, **kwargs)
-                self.window.set_handler(event, handler)
+        self.window.set_handler("on_key_press", self.on_key_press)
+        self.window.set_handler("on_key_release", self.on_key_release)
+        self.window.set_handler("on_mouse_motion", self.on_mouse_motion)
+        self.window.set_handler("on_mouse_press", self.on_mouse_press)
+        self.window.set_handler("on_mouse_release", self.on_mouse_release)
+        self.window.set_handler("on_mouse_drag", self.on_mouse_drag)
+        self.window.set_handler("on_mouse_scroll", self.on_mouse_scroll)
+        self.window.set_handler("on_resize", self.on_resize)
         self.w, self.h = self.window.width, self.window.height
         
         self.context = moderngl.create_context()
@@ -72,11 +75,39 @@ class GLSkeleton:
         if self.draw_fn:
             self.draw_fn()
 
-    def on_key(self, evt, symbol, modifiers):
+    def on_key_press(self, symbol, modifiers):
         if symbol == pyglet.window.key.ESCAPE:
             self.running = False
 
-        
+        if self.key_fn:
+            self.key_fn("press", symbol, modifiers)
+
+    def on_key_release(self, symbol, modifiers):
+        if self.key_fn:
+            self.key_fn("release", symbol, modifiers)
+
+    def on_mouse_motion(self, x, y, dx, dy):
+        if self.mouse_fn:
+            self.mouse_fn("move", x=x, y=y, dx=dx, dy=dy)
+
+    def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+        if self.mouse_fn:
+            self.mouse_fn(
+                "drag", x=x, y=y, dx=dx, dy=dy, buttons=buttons, modifiers=modifiers
+            )
+
+    def on_mouse_press(self, x, y, buttons, modifiers):
+        if self.mouse_fn:
+            self.mouse_fn("press", x=x, y=y, buttons=buttons, modifiers=modifiers)
+
+    def on_mouse_release(self, x, y, buttons, modifiers):
+        if self.mouse_fn:
+            self.mouse_fn("release", x=x, y=y, buttons=buttons, modifiers=modifiers)
+
+    def on_mouse_scroll(self, x, y, scroll_x, scroll_y):
+        if self.mouse_fn:
+            self.mouse_fn("scroll", x=x, y=y, scroll_x=scroll_x, scroll_y=scroll_y)
+
     # init routine, sets up the engine, then enters the main loop
     def __init__(
         self,
@@ -94,7 +125,7 @@ class GLSkeleton:
         if not debug:
             # faster, but unsafe operation
             pyglet.options["debug_gl"] = False
-        
+        self.init_pyglet(window_size)
         self.fps = 60
         self.frames = 0
         self.debug = debug
@@ -107,7 +138,6 @@ class GLSkeleton:
         self.running = True
         self.elapsed_time = 0
         self.actual_fps = self.fps  # until we update when running
-        self.init_pyglet(window_size)
 
     # handles shutdown
     def exit(self):
@@ -117,7 +147,8 @@ class GLSkeleton:
 
     # frame loop. Called on every frame. all calculation shpuld be carried out here
     def tick(self, delta_t):
-        time.sleep(0.002)  # yield!        
+        time.sleep(0.0002)  # yield!
+        
         if self.tick_fn:
             self.tick_fn()
 
@@ -125,6 +156,7 @@ class GLSkeleton:
         return timer()
 
     # main loop. Just runs tick until the program exits
+
     def run(self):
         self.start_time = self.clock()
         while self.running:
@@ -140,4 +172,3 @@ class GLSkeleton:
     def main_loop(self):
         pyglet.clock.set_fps_limit(self.fps)
         self.run()
-

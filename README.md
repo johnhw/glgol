@@ -16,7 +16,7 @@ The code is implemented in Python, using [ModernGL](https://github.com/cprogramm
 
 ### Structure
 
-* The original pattern is packed into a 16 state format (2x2 binary cells -> one 16 state "block").
+* The original binary pattern is packed into a 16 state format (2x2 binary cells -> one 16 state "block").
 
         +---+
         |a b|
@@ -28,7 +28,7 @@ The code is implemented in Python, using [ModernGL](https://github.com/cprogramm
         
 
 
-* A lookup table mapping every 4x4 "superblock" to a 2x2 successor is created and stored as a texture. This encodes the Life rule
+* A lookup table mapping every 4x4 "superblock" of binary cells to a 2x2 successor is created and stored as a texture. This encodes the Life rule
 (or any other outer-totalistic rule). F' means the successor of cell F
 in the next generation after applying the Life rule.
 
@@ -43,7 +43,7 @@ in the next generation after applying the Life rule.
        +-------+  
 
 
-This superblock is then split into 4 2x2 parts, with the NX' being the centre block in the next generation (note this introduces an offset, but this is easily compensated for)
+This superblock is split into 4 2x2 parts, with the NX' being the centre block in the next generation (note this introduces an offset, but this is easily compensated for)
  
              +---+         +---+
         NW = |a b|    NE = |c d|
@@ -60,7 +60,7 @@ This superblock is then split into 4 2x2 parts, with the NX' being the centre bl
              |J'K'|
              +----+
 
-The final table maps each 2x2 superblock of 2x2 blocks to a new 2x2 block NX, offset by one cell to the northwest.
+So that the final table maps each 4x4 superblock to a new 2x2 block NX, offset by one cell to the northwest.
 
         +-----+     +------+
         |NW NE|  -> |NX' * |
@@ -69,8 +69,8 @@ The final table maps each 2x2 superblock of 2x2 blocks to a new 2x2 block NX, of
 
         lookup_table[NW, NE, SW, SE] = NX'        
 
-This creates a 16x16x16x16 lookup table, each entry being a 4 bit code NX'. This is reshaped to a 256x256 array before upload to the GPU, as 4D
-textures are not supported directly in OpenGL.
+This creates a 16x16x16x16 lookup table, each entry being a 4 bit code NX'. This is reshaped to a 256x256 array before upload to the GPU, as 4D textures are not supported directly in OpenGL. Note that to compute
+the next generation, we only need to look at *four* neighbours to do the lookup.
 
 ### OpenGL implementation
 
@@ -91,7 +91,6 @@ textures are not supported directly in OpenGL.
             
 
 #### Notes
-* It might be more sensible to use compute shaders rather than colour framebuffers for this purpose.
 * Atomic buffer operations are used to provide a cell population count
 as the unpacking of cells progresses
 * `texelFetch()` is used to look up exact entries in the lookup table.

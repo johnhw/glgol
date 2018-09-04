@@ -1,5 +1,13 @@
 """
-    Renders a traingle that has all RGB combinations
+    Implements Callahan's Life algorithm in OpenGL using moderngl.
+
+    Patterns are stored and updated as a 16 state CA which only considers 
+    4 neighbours in each update. The Life rule is implemented as a shader
+    using a lookup table to update the 16 cell CA.
+
+    A second shader is used to unpack this format for display on screen.
+
+    Lookup tables are implemented in callahan.py.
 """
 
 import moderngl
@@ -32,6 +40,7 @@ def packed_to_texture(ctx, packed, lif_size, texture):
 
 
 def square_single_channel_texture(ctx, size, data=None):
+    # create and return a single channel square texture 
     texture = ctx.texture((size, size), components=1, data=data)
     texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
     return texture
@@ -87,7 +96,6 @@ class CallahanGL:
         )
         self.colour_scope = self.ctx.scope(self.colour_fbo)
 
-
     def load_shaders(self):
         # shader to convert packed 4 bit format to binary pixels
         self.unpack_prog = shader_from_file(
@@ -129,7 +137,10 @@ class CallahanGL:
         # fix the projection matrix
         set_matrix(self.tex_prog, "projection", self.projection)
 
-    def __init__(self):
+    def __init__(self, fname):
+        # load life pattern                
+        packed = pack_life(load_life(fname))
+
         self.lif_size = 1024
 
         self.setup_gl()
@@ -147,9 +158,7 @@ class CallahanGL:
             self.ctx, 256, data=s_table * 17
         )
 
-        # load life pattern
-        fname = "pat/breeder.lif"
-        packed = pack_life(load_life(fname))
+        # upload to texture        
         packed_to_texture(self.ctx, packed, self.lif_size, self.front.texture)
         self.population = 0
 
@@ -170,7 +179,6 @@ class CallahanGL:
             self.gol_prog["frameOffset"].value = frame_offset
             self.gol_vao.render(mode=moderngl.TRIANGLE_STRIP)
 
-        
         # render to the display buffer
         self.display.offset = -frame_offset
         with self.display:
@@ -178,8 +186,8 @@ class CallahanGL:
 
             self.unpack_prog["frame"].value = self.skeleton.frames
 
-            self.ctx.enable(moderngl.BLEND)
-            self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
+            #self.ctx.enable(moderngl.BLEND)
+            #self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
             # read population back from the buffer
             self.pop_buffer.bind_to_storage_buffer(binding=0)
             self.unpack_vao.render(mode=moderngl.TRIANGLE_STRIP)
@@ -201,7 +209,7 @@ class CallahanGL:
         # in single channel mode. This restores the colour rendering.
         with self.colour_scope:
             pass
-     
+
         # set the unpacked pixels as the current texture
         self.display.use()
 
@@ -210,12 +218,15 @@ class CallahanGL:
             [2 * self.track[0] / self.lif_size, 2 * self.track[1] / self.lif_size, 0]
         ).astype(np.float32)
         set_matrix(self.tex_prog, "modelview", self.model_view)
-        
 
         self.tex_vao.render(mode=moderngl.TRIANGLE_STRIP)
 
         # flip buffers
         self.front, self.back = self.back, self.front
 
-
-CallahanGL()
+if __name__=="__main__":
+    import sys
+    if len(sys.argv)==2:
+        CallahanGL(fname=sys.argv[1])
+    else:
+        CallahanGL(fname="pat/breeder.lif")
